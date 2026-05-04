@@ -269,26 +269,45 @@ async function carregarEscritorio() {
     if (data) {
       escritorioId = data.id;
       escritorioData = data;
-      document.getElementById('nomeEscritorio').textContent = data.nome;
-      document.getElementById('footerNome').textContent = data.nome;
-      document.title = data.nome + ' — Portal do Cliente';
+      aplicarVisualEscritorio(data);
+    }
+  } catch (e) {}
+}
 
-      if (data.logo_url) {
-        document.getElementById('logoContainer').innerHTML =
-          '<div style="display:flex;align-items:center;gap:12px">' +
-            '<img src="' + data.logo_url + '" alt="' + data.nome + '" class="logo-img">' +
-            '<div class="logo-text">' +
-              '<div class="firm">' + data.nome + '</div>' +
-              '<div class="tagline">Portal do Cliente</div>' +
-            '</div>' +
-          '</div>';
-      }
-      if (data.cor_primaria) {
-        document.documentElement.style.setProperty('--gold', data.cor_primaria);
-      }
-      if (data.cor_primaria_escura) {
-        document.documentElement.style.setProperty('--gold-dark', data.cor_primaria_escura);
-      }
+function aplicarVisualEscritorio(data) {
+  document.getElementById('nomeEscritorio').textContent = data.nome;
+  document.getElementById('footerNome').textContent = data.nome;
+  document.title = data.nome + ' — Portal do Cliente';
+
+  if (data.logo_url) {
+    document.getElementById('logoContainer').innerHTML =
+      '<div style="display:flex;align-items:center;gap:12px">' +
+        '<img src="' + data.logo_url + '" alt="' + data.nome + '" class="logo-img">' +
+        '<div class="logo-text">' +
+          '<div class="firm">' + data.nome + '</div>' +
+          '<div class="tagline">Portal do Cliente</div>' +
+        '</div>' +
+      '</div>';
+  }
+  if (data.cor_primaria) {
+    document.documentElement.style.setProperty('--gold', data.cor_primaria);
+  }
+  if (data.cor_primaria_escura) {
+    document.documentElement.style.setProperty('--gold-dark', data.cor_primaria_escura);
+  }
+}
+
+async function carregarEscritorioPorId(id) {
+  if (!id) return;
+  try {
+    const { data } = await db
+      .from('escritorios')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (data) {
+      escritorioData = data;
+      aplicarVisualEscritorio(data);
     }
   } catch (e) {}
 }
@@ -349,10 +368,25 @@ async function iniciarBusca() {
     const { data: processos, error } = await query;
     if (error) throw error;
 
+    // Descobre o escritorio_id pelos processos encontrados
+    // (cada processo tem escritorio_id direto, ou via clientes.escritorio_id)
+    let escritorioConsulta = escritorioId;
+    if (!escritorioConsulta && processos && processos.length > 0) {
+      const primeiro = processos[0];
+      escritorioConsulta = primeiro.escritorio_id ||
+                           (primeiro.clientes && primeiro.clientes.escritorio_id) ||
+                           null;
+      // Carrega dados do escritório (logo, cores) pra exibir corretamente
+      if (escritorioConsulta) {
+        await carregarEscritorioPorId(escritorioConsulta);
+      }
+    }
+
+    // Registra a consulta vinculada ao escritório certo
     try {
       await db.from('consultas').insert({
         cpf_consultado: cpf,
-        escritorio_id: escritorioId,
+        escritorio_id: escritorioConsulta,
         processos_encontrados: (processos || []).length
       });
     } catch (_) {}
