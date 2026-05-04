@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATENDJUS — Painel Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --gold:#c9a84c;--gold-dark:#a07830;--gold-pale:#faf6ee;
+    --dark:#111010;--dark2:#1c1b1b;
+    --surface:#f4f2ef;--border:#e0d8c8;--white:#fff;
+    --text:#1a1815;--text-muted:#7a7060;--text-light:#b0a090;
+    --green:#1e5c3a;--green-bg:#edf7f1;--green-border:#a8d8ba;
+    --red:#7a1f2a;--red-bg:#fdf0f1;--red-border:#e8b0b5;
+    --blue:#1a3a5c;--blue-bg:#eef4fc;--blue-border:#a8c8e8;
+    --amber:#92600a;--amber-bg:#fef8ec;
+    --radius:10px;--shadow:0 2px 12px rgba(0,0,0,0.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);min-height:100vh}
+
+  /* LOGIN */
+  #loginScreen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--dark)}
+  .login-card{background:var(--dark2);border:1px solid rgba(201,168,76,0.2);border-radius:16px;padding:2.5rem;width:100%;max-width:400px}
+  .login-logo{text-align:center;margin-bottom:2rem}
+  .login-logo .icon{font-size:40px;margin-bottom:.75rem}
+  .login-logo h1{font-family:'Playfair Display',serif;color:#f5f0e8;font-size:22px}
+  .login-logo p{color:var(--gold);font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-top:.25rem}
+  .login-field{margin-bottom:1rem}
+  .login-field label{display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(245,240,232,0.5);margin-bottom:.5rem}
+  .login-field input{width:100%;padding:.85rem 1rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#f5f0e8;font-family:'DM Sans',sans-serif;font-size:15px;outline:none;transition:border-color .2s}
+  .login-field input:focus{border-color:var(--gold)}
+  .login-btn{width:100%;padding:.9rem;background:var(--gold);color:var(--dark);border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;margin-top:.5rem;transition:all .2s}
+  .login-btn:hover{background:var(--gold-dark);color:white}
+  .login-error{color:#f87171;font-size:13px;text-align:center;margin-top:1rem}
+
+  /* ADMIN */
+  #adminScreen{display:none}
+  .admin-header{background:var(--dark);padding:0 2rem;border-bottom:1px solid rgba(201,168,76,0.2);position:sticky;top:0;z-index:50}
+  .admin-header-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:60px}
+  .admin-logo{font-family:'Playfair Display',serif;color:#f5f0e8;font-size:18px;display:flex;align-items:center;gap:10px}
+  .admin-logo span{color:var(--gold);font-size:14px}
+  .admin-user{display:flex;align-items:center;gap:1rem}
+  .admin-user .email{font-size:12px;color:rgba(245,240,232,0.5)}
+  .btn-logout{background:none;border:1px solid rgba(255,255,255,0.1);color:rgba(245,240,232,0.7);padding:.4rem .9rem;border-radius:6px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s}
+  .btn-logout:hover{border-color:var(--gold);color:var(--gold)}
+  .admin-body{max-width:1200px;margin:0 auto;padding:2rem}
+
+  /* TABS */
+  .tabs{display:flex;gap:4px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:4px;margin-bottom:2rem;width:fit-content}
+  .tab-btn{padding:.6rem 1.25rem;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--text-muted);transition:all .2s;font-family:'DM Sans',sans-serif}
+  .tab-btn.active{background:var(--dark);color:var(--gold)}
+  .tab-content{display:none}
+  .tab-content.active{display:block}
+
+  /* STATS */
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem}
+  .stat-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem}
+  .stat-label{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-light);margin-bottom:.5rem}
+  .stat-value{font-size:28px;font-weight:700;color:var(--text);font-family:'Playfair Display',serif}
+  .stat-sub{font-size:12px;color:var(--text-muted);margin-top:.25rem}
+
+  /* IMPORT */
+  .import-box{background:var(--white);border:2px dashed var(--border);border-radius:var(--radius);padding:2.5rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:1.5rem}
+  .import-box:hover,.import-box.drag-over{border-color:var(--gold);background:var(--gold-pale)}
+  .import-icon{font-size:40px;margin-bottom:1rem}
+  .import-title{font-size:16px;font-weight:600;margin-bottom:.4rem}
+  .import-desc{font-size:13px;color:var(--text-muted);margin-bottom:1.25rem;line-height:1.6}
+  .btn-import{display:inline-flex;align-items:center;gap:6px;padding:.7rem 1.5rem;background:var(--dark);color:var(--gold);border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif}
+  .modelo-btn{display:inline-flex;align-items:center;gap:6px;padding:.5rem 1rem;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:.75rem}
+
+  /* PREVIEW CPF */
+  .preview-box{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-bottom:1.5rem;display:none}
+  .preview-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+  .preview-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:.5rem}
+  .preview-count{background:var(--gold);color:var(--dark);padding:2px 10px;border-radius:20px;font-size:12px;font-weight:700}
+  .cpf-needed{background:var(--red-bg);border:1px solid var(--red-border);color:var(--red);padding:2px 10px;border-radius:20px;font-size:12px;font-weight:700}
+  .preview-table{width:100%;border-collapse:collapse;font-size:13px}
+  .preview-table th{padding:.6rem .75rem;text-align:left;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-light);background:var(--surface);border-bottom:1px solid var(--border)}
+  .preview-table td{padding:.6rem .75rem;border-bottom:1px solid var(--border);vertical-align:middle}
+  .preview-table tr:last-child td{border:none}
+  .cpf-input{width:140px;padding:.35rem .6rem;border:1.5px solid var(--border);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;transition:border-color .2s}
+  .cpf-input:focus{border-color:var(--gold)}
+  .cpf-input.ok{border-color:var(--green);background:var(--green-bg)}
+  .cpf-input.missing{border-color:var(--red);background:var(--red-bg)}
+  .cpf-auto{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--green);display:flex;align-items:center;gap:4px}
+  .preview-actions{display:flex;gap:.75rem;margin-top:1.25rem;align-items:center}
+  .btn-confirmar{padding:.75rem 1.5rem;background:var(--green);color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif}
+  .btn-confirmar:disabled{opacity:.5;cursor:not-allowed}
+  .btn-cancelar{padding:.75rem 1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif}
+  .aviso-cpf{font-size:12px;color:var(--amber);display:flex;align-items:center;gap:4px}
+
+  /* PROGRESS */
+  .progress-box{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-bottom:1.5rem;display:none}
+  .progress-bar-wrap{background:var(--surface);border-radius:20px;height:8px;margin:.75rem 0;overflow:hidden}
+  .progress-bar{background:var(--gold);height:100%;border-radius:20px;transition:width .3s;width:0%}
+  .progress-text{font-size:13px;color:var(--text-muted)}
+
+  /* TABLE */
+  .table-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+  .table-title{font-size:16px;font-weight:600}
+  .btn-add{display:inline-flex;align-items:center;gap:6px;padding:.6rem 1.25rem;background:var(--dark);color:var(--gold);border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif}
+  .table-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  table{width:100%;border-collapse:collapse}
+  th{padding:.75rem 1rem;text-align:left;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-light);background:var(--surface);border-bottom:1px solid var(--border)}
+  td{padding:.875rem 1rem;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:var(--gold-pale)}
+  .badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+  .badge-green{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+  .badge-amber{background:var(--amber-bg);color:var(--amber);border:1px solid #f0d090}
+  .badge-gray{background:#f0ede8;color:var(--text-muted);border:1px solid var(--border)}
+  .badge-blue{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border)}
+  .badge-red{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+  .btn-sm{padding:.35rem .75rem;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all .2s}
+  .btn-edit{background:var(--blue-bg);color:var(--blue)}
+  .btn-delete{background:var(--red-bg);color:var(--red)}
+  .btn-edit:hover{background:var(--blue);color:white}
+  .btn-delete:hover{background:var(--red);color:white}
+  .empty-row td{text-align:center;color:var(--text-muted);padding:2rem}
+  .search-bar{display:flex;gap:.75rem;margin-bottom:1rem}
+  .search-input{flex:1;padding:.65rem 1rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;background:white}
+  .search-input:focus{border-color:var(--gold)}
+
+  /* MODAL */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal{background:var(--white);border-radius:16px;padding:2rem;width:100%;max-width:500px;max-height:90vh;overflow-y:auto}
+  .modal h2{font-family:'Playfair Display',serif;font-size:20px;margin-bottom:1.5rem}
+  .modal-field{margin-bottom:1rem}
+  .modal-field label{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:.4rem}
+  .modal-field input,.modal-field select,.modal-field textarea{width:100%;padding:.75rem 1rem;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);background:var(--gold-pale);outline:none;transition:border-color .2s}
+  .modal-field input:focus,.modal-field select:focus,.modal-field textarea:focus{border-color:var(--gold);background:white}
+  .modal-actions{display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.5rem}
+  .btn-cancel{padding:.7rem 1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif}
+  .btn-save{padding:.7rem 1.5rem;background:var(--dark);color:var(--gold);border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif}
+
+  @media(max-width:768px){.stats-grid{grid-template-columns:1fr 1fr}.admin-body{padding:1rem}}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="icon">⚖️</div>
+      <h1>ATENDJUS</h1>
+      <p>Painel Administrativo</p>
+    </div>
+    <div class="login-field"><label>E-mail</label><input type="email" id="loginEmail" placeholder="seu@email.com"></div>
+    <div class="login-field"><label>Senha</label><input type="password" id="loginSenha" placeholder="••••••••" onkeydown="if(event.key==='Enter')fazerLogin()"></div>
+    <button class="login-btn" onclick="fazerLogin()">Entrar no painel</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<div id="adminScreen">
+  <div class="admin-header">
+    <div class="admin-header-inner">
+      <div class="admin-logo">⚖️ ATENDJUS <span>/ Painel do Escritório</span></div>
+      <div class="admin-user">
+        <span class="email" id="adminEmail"></span>
+        <button class="btn-logout" onclick="fazerLogout()">Sair</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-body">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('dashboard',this)">📊 Dashboard</button>
+      <button class="tab-btn" onclick="switchTab('importar',this)">📥 Importar em Lote</button>
+      <button class="tab-btn" onclick="switchTab('processos',this)">📋 Processos</button>
+      <button class="tab-btn" onclick="switchTab('clientes',this)">👥 Clientes</button>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Clientes</div><div class="stat-value" id="statClientes">—</div><div class="stat-sub">cadastrados</div></div>
+        <div class="stat-card"><div class="stat-label">Processos Ativos</div><div class="stat-value" id="statProcessos">—</div><div class="stat-sub">em andamento</div></div>
+        <div class="stat-card"><div class="stat-label">Consultas Hoje</div><div class="stat-value" id="statConsultasHoje">—</div><div class="stat-sub">pelos clientes</div></div>
+        <div class="stat-card"><div class="stat-label">Total Consultas</div><div class="stat-value" id="statConsultasTotal">—</div><div class="stat-sub">desde o início</div></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>CPF consultado</th><th>Processos encontrados</th><th>Data/Hora</th></tr></thead>
+          <tbody id="tabelaConsultas"><tr class="empty-row"><td colspan="3">Nenhuma consulta ainda</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- IMPORTAR ASTREA -->
+    <div class="tab-content" id="tab-importar">
+      <div class="import-box" id="importBox" onclick="document.getElementById('fileInput').click()" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFile(event)">
+        <div class="import-icon">📊</div>
+        <div class="import-title">Importar processos em lote</div>
+        <div class="import-desc">
+          Exporte a planilha do Astrea normalmente e arraste aqui.<br>
+          O sistema lê automaticamente todos os campos e extrai CPFs quando disponíveis.<br>
+          <strong>Campos lidos:</strong> Cliente, Número do processo, Último andamento, Vara, Matéria, Ação, Data.
+        </div>
+        <button class="btn-import" onclick="event.stopPropagation();document.getElementById('fileInput').click()">📂 Selecionar planilha</button>
+        <br>
+        <button class="modelo-btn" onclick="event.stopPropagation();baixarModelo()">⬇️ Ver colunas esperadas</button>
+      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="processarArquivo(this.files[0])">
+
+      <div class="progress-box" id="progressBox">
+        <div style="font-size:14px;font-weight:600;margin-bottom:.75rem">⏳ Importando processos...</div>
+        <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+        <div class="progress-text" id="progressText">Preparando...</div>
+      </div>
+
+      <div class="preview-box" id="previewBox">
+        <div class="preview-header">
+          <div class="preview-title">
+            ✅ Processos encontrados
+            <span class="preview-count" id="previewCount">0</span>
+            <span class="cpf-needed" id="cpfNeededBadge" style="display:none">0 sem CPF</span>
+          </div>
+        </div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:1rem">
+          CPFs extraídos automaticamente aparecem em verde. Preencha manualmente os que estão em branco.
+        </p>
+        <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
+          <table class="preview-table">
+            <thead><tr><th>Cliente</th><th>Nº Processo</th><th>Matéria</th><th>Último andamento</th><th>CPF</th></tr></thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+        </div>
+        <div class="preview-actions">
+          <button class="btn-cancelar" onclick="cancelarImportacao()">Cancelar</button>
+          <button class="btn-confirmar" id="btnConfirmar" onclick="confirmarImportacao()">✅ Confirmar importação</button>
+          <span class="aviso-cpf" id="avisosCpf" style="display:none">⚠️ Processos sem CPF serão importados sem vínculo de cliente</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROCESSOS -->
+    <div class="tab-content" id="tab-processos">
+      <div class="table-header">
+        <div class="table-title">Processos cadastrados</div>
+        <button class="btn-add" onclick="abrirModalProcesso()">+ Novo processo</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" class="search-input" placeholder="Buscar por número, cliente ou matéria..." oninput="filtrarProcessos(this.value)">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Número</th><th>Cliente</th><th>Matéria</th><th>Vara</th><th>Último andamento</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody id="tabelaProcessos"><tr class="empty-row"><td colspan="7">Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CLIENTES -->
+    <div class="tab-content" id="tab-clientes">
+      <div class="table-header">
+        <div class="table-title">Clientes cadastrados</div>
+        <button class="btn-add" onclick="abrirModalCliente()">+ Novo cliente</button>
+      </div>
+      <div class="search-bar">
+        <input type="text" class="search-input" placeholder="Buscar por nome ou CPF..." oninput="filtrarClientes(this.value)">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Nome</th><th>CPF</th><th>Processos</th><th>Cadastrado em</th><th>Ações</th></tr></thead>
+          <tbody id="tabelaClientes"><tr class="empty-row"><td colspan="5">Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PROCESSO -->
+<div class="modal-overlay" id="modalProcesso">
+  <div class="modal">
+    <h2 id="modalProcessoTitulo">Novo Processo</h2>
+    <input type="hidden" id="processoId">
+    <div class="modal-field"><label>Cliente *</label><select id="processoCliente"><option value="">Selecione...</option></select></div>
+    <div class="modal-field"><label>Número do processo *</label><input type="text" id="processoNumero"></div>
+    <div class="modal-field"><label>Matéria</label><input type="text" id="processoTipo" placeholder="Trabalhista, Cível, Previdenciário..."></div>
+    <div class="modal-field"><label>Vara</label><input type="text" id="processoTribunal"></div>
+    <div class="modal-field"><label>Último andamento</label><input type="text" id="processoUltimoAndamento"></div>
+    <div class="modal-field"><label>Status</label>
+      <select id="processoStatus">
+        <option value="em_andamento">Em andamento</option>
+        <option value="aguardando">Aguardando</option>
+        <option value="encerrado">Encerrado</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="fecharModais()">Cancelar</button>
+      <button class="btn-save" onclick="salvarProcesso()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CLIENTE -->
+<div class="modal-overlay" id="modalCliente">
+  <div class="modal">
+    <h2>Novo Cliente</h2>
+    <input type="hidden" id="clienteId">
+    <div class="modal-field"><label>Nome completo *</label><input type="text" id="clienteNome"></div>
+    <div class="modal-field"><label>CPF *</label><input type="text" id="clienteCPF" maxlength="14"></div>
+    <div class="modal-field"><label>E-mail</label><input type="email" id="clienteEmail"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="fecharModais()">Cancelar</button>
+      <button class="btn-save" onclick="salvarCliente()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL='https://bevjfxddomxnlooehosw.supabase.co';
+const SUPABASE_KEY='sb_publishable_6XzMKknTBAAvPkY8RhVDiA_Xbferu5b';
+const {createClient}=supabase;
+const db=createClient(SUPABASE_URL,SUPABASE_KEY);
+
+let escritorioId=null;
+let todosProcessos=[];
+let todosClientes=[];
+let dadosImportacao=[];
+
+// FORMAT CPF
+function formatCPF(v){return v.replace(/\D/g,'').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2')}
+document.getElementById('clienteCPF').addEventListener('input',function(){this.value=formatCPF(this.value)});
+
+// Extrair CPF de texto
+function extrairCPF(texto){
+  if(!texto) return null;
+  const match = texto.match(/CPF[:\s]*(\d{3}[\.\s]?\d{3}[\.\s]?\d{3}[\-\s]?\d{2})/i);
+  if(match) return match[1].replace(/\D/g,'');
+  // CPF solto no texto
+  const cpfMatch = texto.match(/\b(\d{3}\.?\d{3}\.?\d{3}-?\d{2})\b/);
+  if(cpfMatch){
+    const cpf = cpfMatch[1].replace(/\D/g,'');
+    if(cpf.length === 11) return cpf;
+  }
+  return null;
+}
+
+// LOGIN
+async function fazerLogin(){
+  const email=document.getElementById('loginEmail').value;
+  const senha=document.getElementById('loginSenha').value;
+  const erro=document.getElementById('loginError');
+  erro.textContent='';
+  const {data,error}=await db.auth.signInWithPassword({email,password:senha});
+  if(error){erro.textContent='E-mail ou senha incorretos.';return}
+  await iniciarAdmin(data.user);
+}
+
+async function iniciarAdmin(user){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('adminScreen').style.display='block';
+  document.getElementById('adminEmail').textContent=user.email;
+  const {data}=await db.from('escritorio_usuarios').select('escritorio_id').eq('user_id',user.id).single();
+  if(data) escritorioId=data.escritorio_id;
+  carregarDados();
+}
+
+async function fazerLogout(){await db.auth.signOut();location.reload()}
+
+function switchTab(tab,btn){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+}
+
+async function carregarDados(){
+  await Promise.all([carregarStats(),carregarClientes(),carregarProcessos(),carregarConsultas()]);
+}
+
+async function carregarStats(){
+  const hoje=new Date().toISOString().split('T')[0];
+  const [{count:c1},{count:c2},{count:c3},{count:c4}]=await Promise.all([
+    db.from('clientes').select('*',{count:'exact',head:true}).eq('escritorio_id',escritorioId),
+    db.from('processos').select('*',{count:'exact',head:true}).eq('escritorio_id',escritorioId).eq('ativo',true),
+    db.from('consultas').select('*',{count:'exact',head:true}).eq('escritorio_id',escritorioId).gte('created_at',hoje),
+    db.from('consultas').select('*',{count:'exact',head:true}).eq('escritorio_id',escritorioId)
+  ]);
+  document.getElementById('statClientes').textContent=c1||0;
+  document.getElementById('statProcessos').textContent=c2||0;
+  document.getElementById('statConsultasHoje').textContent=c3||0;
+  document.getElementById('statConsultasTotal').textContent=c4||0;
+}
+
+async function carregarConsultas(){
+  const {data}=await db.from('consultas').select('*').eq('escritorio_id',escritorioId).order('created_at',{ascending:false}).limit(10);
+  const tbody=document.getElementById('tabelaConsultas');
+  if(!data?.length){tbody.innerHTML='<tr class="empty-row"><td colspan="3">Nenhuma consulta ainda</td></tr>';return}
+  tbody.innerHTML=data.map(c=>`<tr>
+    <td style="font-family:'JetBrains Mono',monospace;font-size:12px">${c.cpf_consultado}</td>
+    <td><span class="badge ${c.processos_encontrados>0?'badge-green':'badge-gray'}">${c.processos_encontrados} processo(s)</span></td>
+    <td style="color:var(--text-muted);font-size:12px">${new Date(c.created_at).toLocaleString('pt-BR')}</td>
+  </tr>`).join('');
+}
+
+async function carregarClientes(){
+  const {data}=await db.from('clientes').select('*').eq('escritorio_id',escritorioId).order('nome');
+  todosClientes=data||[];
+  renderizarClientes(todosClientes);
+  const sel=document.getElementById('processoCliente');
+  sel.innerHTML='<option value="">Selecione o cliente...</option>'+todosClientes.map(c=>`<option value="${c.id}">${c.nome} — ${c.cpf}</option>`).join('');
+}
+
+function renderizarClientes(lista){
+  const tbody=document.getElementById('tabelaClientes');
+  if(!lista.length){tbody.innerHTML='<tr class="empty-row"><td colspan="5">Nenhum cliente cadastrado</td></tr>';return}
+  tbody.innerHTML=lista.map(c=>`<tr>
+    <td><strong>${c.nome}</strong></td>
+    <td style="font-family:'JetBrains Mono',monospace;font-size:12px">${c.cpf||'—'}</td>
+    <td><span class="badge badge-blue">processos</span></td>
+    <td style="color:var(--text-muted);font-size:12px">${new Date(c.created_at).toLocaleDateString('pt-BR')}</td>
+    <td><button class="btn-sm btn-delete" onclick="deletarCliente('${c.id}')">Remover</button></td>
+  </tr>`).join('');
+}
+
+async function carregarProcessos(){
+  const {data}=await db.from('processos').select('*,clientes(nome,cpf)').eq('escritorio_id',escritorioId).order('created_at',{ascending:false});
+  todosProcessos=data||[];
+  renderizarProcessos(todosProcessos);
+}
+
+function renderizarProcessos(lista){
+  const tbody=document.getElementById('tabelaProcessos');
+  if(!lista.length){tbody.innerHTML='<tr class="empty-row"><td colspan="7">Nenhum processo cadastrado</td></tr>';return}
+  tbody.innerHTML=lista.map(p=>{
+    const bc=p.status==='encerrado'?'badge-gray':p.status==='aguardando'?'badge-amber':'badge-blue';
+    const bl=p.status==='encerrado'?'Encerrado':p.status==='aguardando'?'Aguardando':'Em andamento';
+    const andamento=(p.ultimo_andamento||'').replace(/<[^>]*>/g,'').substring(0,60)+'...';
+    return`<tr>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${p.numero||'—'}</td>
+      <td><strong>${p.clientes?.nome||'Sem vínculo'}</strong></td>
+      <td style="color:var(--text-muted)">${p.tipo||'—'}</td>
+      <td style="color:var(--text-muted);font-size:12px">${p.tribunal||'—'}</td>
+      <td style="color:var(--text-muted);font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${andamento}</td>
+      <td><span class="badge ${bc}">${bl}</span></td>
+      <td style="display:flex;gap:.5rem">
+        <button class="btn-sm btn-edit" onclick="editarProcesso('${p.id}')">Editar</button>
+        <button class="btn-sm btn-delete" onclick="deletarProcesso('${p.id}')">Remover</button>
+      </td>
+    </tr>`}).join('');
+}
+
+function filtrarProcessos(q){
+  const f=todosProcessos.filter(p=>
+    p.numero?.toLowerCase().includes(q.toLowerCase())||
+    p.clientes?.nome?.toLowerCase().includes(q.toLowerCase())||
+    p.tipo?.toLowerCase().includes(q.toLowerCase())
+  );
+  renderizarProcessos(f);
+}
+
+function filtrarClientes(q){
+  const f=todosClientes.filter(c=>c.nome?.toLowerCase().includes(q.toLowerCase())||c.cpf?.includes(q));
+  renderizarClientes(f);
+}
+
+// ===== IMPORTAÇÃO ASTREA =====
+function dragOver(e){e.preventDefault();document.getElementById('importBox').classList.add('drag-over')}
+function dragLeave(){document.getElementById('importBox').classList.remove('drag-over')}
+function dropFile(e){e.preventDefault();document.getElementById('importBox').classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)processarArquivo(f)}
+
+function processarArquivo(file){
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=new Uint8Array(e.target.result);
+      const wb=XLSX.read(data,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+
+      if(!rows.length){alert('Planilha vazia ou formato inválido.');return}
+
+      // Mapear colunas do Astrea
+      const processos=rows.map(row=>{
+        // Pegar valores das colunas (flexível para variações de nome)
+        const titulo=row['Título']||row['Titulo']||row['título']||'';
+        const cliente=row['Cliente']||row['cliente']||'';
+        const numero=row['Número']||row['Numero']||row['número']||row['numero']||'';
+        const descHistorico=row['Descrição do último histórico']||row['Descricao do ultimo historico']||row['ultimo_historico']||'';
+        const materia=row['Matéria']||row['Materia']||row['materia']||'';
+        const vara=row['Vara']||row['vara']||'';
+        const foro=row['Foro']||row['foro']||'';
+        const acao=row['Ação']||row['Acao']||row['acao']||'';
+        const dataHistorico=row['Data do último histórico']||row['Data do ultimo historico']||'';
+        const papel=row['Papel do cliente']||row['papel']||'';
+        const instancia=row['Instância Atual']||row['Instancia Atual']||'1';
+
+        if(!numero && !cliente) return null;
+
+        // Tentar extrair CPF do título, cliente ou outros campos
+        let cpf=extrairCPF(titulo)||extrairCPF(cliente)||extrairCPF(row['Outros clientes']||'')||null;
+
+        return{
+          nomeCliente: cliente||titulo.split(' x ')[0]||titulo.split(' X ')[0]||'',
+          numero: numero.toString().trim(),
+          tipo: materia||acao||'',
+          tribunal: vara||foro||'',
+          ultimo_andamento: descHistorico,
+          data_ultimo_andamento: dataHistorico,
+          papel_cliente: papel,
+          instancia: instancia.toString(),
+          cpf_auto: cpf,
+          cpf_manual: cpf||'',
+          titulo: titulo
+        };
+      }).filter(p=>p && (p.numero||p.nomeCliente));
+
+      dadosImportacao=processos;
+      mostrarPreview(processos);
+    }catch(err){
+      console.error(err);
+      alert('Erro ao ler o arquivo. Certifique-se que é uma exportação do Astrea em Excel.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function mostrarPreview(lista){
+  const semCPF=lista.filter(p=>!p.cpf_auto).length;
+  document.getElementById('previewCount').textContent=`${lista.length} processo${lista.length!==1?'s':''}`;
+
+  const badge=document.getElementById('cpfNeededBadge');
+  if(semCPF>0){
+    badge.textContent=`${semCPF} sem CPF`;
+    badge.style.display='inline-flex';
+    document.getElementById('avisosCpf').style.display='flex';
+  } else {
+    badge.style.display='none';
+    document.getElementById('avisosCpf').style.display='none';
+  }
+
+  const tbody=document.getElementById('previewBody');
+  tbody.innerHTML=lista.map((p,i)=>{
+    const andamentoResumido=(p.ultimo_andamento||'').replace(/<[^>]*>/g,'').substring(0,60)||'—';
+    const cpfField=p.cpf_auto
+      ?`<span class="cpf-auto">✅ ${formatCPF(p.cpf_auto)}</span>`
+      :`<input class="cpf-input" type="text" placeholder="000.000.000-00" maxlength="14"
+          data-idx="${i}" value="${p.cpf_manual}"
+          oninput="atualizarCPF(${i},this.value)"
+          onblur="validarCPFInput(this)">`;
+    return`<tr>
+      <td><strong>${p.nomeCliente||'—'}</strong></td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${p.numero||'—'}</td>
+      <td><span class="badge badge-blue" style="font-size:10px">${p.tipo||'—'}</span></td>
+      <td style="font-size:11px;color:var(--text-muted);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${andamentoResumido}">${andamentoResumido}</td>
+      <td>${cpfField}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('previewBox').style.display='block';
+}
+
+function atualizarCPF(idx,valor){
+  const cpfLimpo=valor.replace(/\D/g,'');
+  dadosImportacao[idx].cpf_manual=cpfLimpo;
+  // Formatar enquanto digita
+  const input=document.querySelector(`[data-idx="${idx}"]`);
+  if(input) input.value=formatCPF(valor);
+}
+
+function validarCPFInput(input){
+  const cpf=input.value.replace(/\D/g,'');
+  if(cpf.length===11){input.classList.add('ok');input.classList.remove('missing')}
+  else if(cpf.length>0){input.classList.add('missing');input.classList.remove('ok')}
+  else{input.classList.remove('ok','missing')}
+}
+
+function cancelarImportacao(){
+  dadosImportacao=[];
+  document.getElementById('previewBox').style.display='none';
+  document.getElementById('fileInput').value='';
+}
+
+async function confirmarImportacao(){
+  if(!dadosImportacao.length) return;
+  document.getElementById('previewBox').style.display='none';
+  document.getElementById('progressBox').style.display='block';
+
+  let importados=0;
+  const total=dadosImportacao.length;
+
+  for(const item of dadosImportacao){
+    try{
+      const cpf=(item.cpf_auto||item.cpf_manual||'').replace(/\D/g,'');
+      let clienteId=null;
+
+      // Extrair nome completo do título (antes do " x " ou " X ")
+      let nomeCompleto = item.nomeCliente || '';
+      if(item.titulo) {
+        const partes = item.titulo.split(/ x | X /);
+        if(partes.length > 0) {
+          // Pegar o lado do processo baseado no papel do cliente
+          const papel = (item.papel_cliente||'').toLowerCase();
+          if(papel.includes('reclamado') || papel.includes('réu') || papel.includes('requerido') || papel.includes('executado') || papel.includes('polo passivo')) {
+            nomeCompleto = partes[1]?.trim().split(' - CPF')[0].split(' - CNPJ')[0] || nomeCompleto;
+          } else {
+            nomeCompleto = partes[0]?.trim().split(' - CPF')[0].split(' - CNPJ')[0] || nomeCompleto;
+          }
+        }
+      }
+      nomeCompleto = nomeCompleto.trim() || item.nomeCliente || 'Cliente';
+
+      if(cpf && cpf.length===11){
+        // Buscar cliente existente pelo CPF
+        const {data:existente}=await db.from('clientes').select('id').eq('cpf',cpf).eq('escritorio_id',escritorioId).single();
+        if(existente){
+          clienteId=existente.id;
+          // Atualizar nome se estiver mais completo
+          if(nomeCompleto.length > existente.nome?.length) {
+            await db.from('clientes').update({nome:nomeCompleto}).eq('id',existente.id);
+          }
+        } else {
+          // Criar cliente com CPF
+          const {data:novo}=await db.from('clientes').insert({
+            nome:nomeCompleto,
+            cpf,
+            escritorio_id:escritorioId
+          }).select('id').single();
+          clienteId=novo?.id;
+        }
+      } else if(nomeCompleto) {
+        // Sem CPF — buscar pelo nome ou criar sem CPF
+        const {data:existente}=await db.from('clientes').select('id').eq('nome',nomeCompleto).eq('escritorio_id',escritorioId).single();
+        if(existente){
+          clienteId=existente.id;
+        } else {
+          const {data:novo}=await db.from('clientes').insert({
+            nome:nomeCompleto,
+            cpf:null,
+            escritorio_id:escritorioId
+          }).select('id').single();
+          clienteId=novo?.id;
+        }
+      }
+
+      // Cadastrar ou atualizar processo
+      if(item.numero){
+        const {data:procExistente}=await db.from('processos').select('id').eq('numero',item.numero).eq('escritorio_id',escritorioId).single();
+
+        const dadosProcesso={
+          numero:item.numero,
+          tipo:item.tipo||null,
+          tribunal:item.tribunal||null,
+          ultimo_andamento:item.ultimo_andamento||null,
+          data_inicio:null,
+          escritorio_id:escritorioId,
+          ativo:true,
+          status:'em_andamento'
+        };
+
+        if(clienteId) dadosProcesso.cliente_id=clienteId;
+
+        if(procExistente){
+          // Atualizar processo existente com novos dados
+          await db.from('processos').update(dadosProcesso).eq('id',procExistente.id);
+        } else {
+          await db.from('processos').insert(dadosProcesso);
+        }
+      }
+
+      importados++;
+      const pct=Math.round((importados/total)*100);
+      document.getElementById('progressBar').style.width=pct+'%';
+      document.getElementById('progressText').textContent=`Importando ${importados} de ${total} processos...`;
+    }catch(e){console.error(e)}
+  }
+
+  document.getElementById('progressText').textContent=`✅ ${importados} processos importados com sucesso!`;
+  setTimeout(()=>{
+    document.getElementById('progressBox').style.display='none';
+    dadosImportacao=[];
+    document.getElementById('fileInput').value='';
+    carregarDados();
+  },2000);
+}
+
+function baixarModelo(){
+  const ws=XLSX.utils.aoa_to_sheet([
+    ['Título','Cliente','Papel do cliente','Número','Descrição do último histórico','Matéria','Vara','Foro','Ação','Data do último histórico','Instância Atual'],
+    ['PAULO SERGIO DE OLIVEIRA x EMPRESA LTDA','P. S. O.','Reclamante','0000498-15.2025.5.07.0030','Publicado intimação no DJE de 04/05/2026','Trabalhista','1ª Vara do Trabalho de Caucaia','CE','ATSum','04/05/2026','1'],
+  ]);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Processos');
+  XLSX.writeFile(wb,'modelo-astrea-atendjus.xlsx');
+}
+
+// MODAIS
+async function abrirModalProcesso(){
+  document.getElementById('processoId').value='';
+  document.getElementById('processoNumero').value='';
+  document.getElementById('processoTipo').value='';
+  document.getElementById('processoTribunal').value='';
+  document.getElementById('processoUltimoAndamento').value='';
+  document.getElementById('processoStatus').value='em_andamento';
+  document.getElementById('modalProcessoTitulo').textContent='Novo Processo';
+  document.getElementById('modalProcesso').classList.add('open');
+}
+
+async function editarProcesso(id){
+  const {data}=await db.from('processos').select('*').eq('id',id).single();
+  if(!data) return;
+  document.getElementById('processoId').value=data.id;
+  document.getElementById('processoCliente').value=data.cliente_id||'';
+  document.getElementById('processoNumero').value=data.numero||'';
+  document.getElementById('processoTipo').value=data.tipo||'';
+  document.getElementById('processoTribunal').value=data.tribunal||'';
+  document.getElementById('processoUltimoAndamento').value=data.ultimo_andamento||'';
+  document.getElementById('processoStatus').value=data.status||'em_andamento';
+  document.getElementById('modalProcessoTitulo').textContent='Editar Processo';
+  document.getElementById('modalProcesso').classList.add('open');
+}
+
+async function salvarProcesso(){
+  const id=document.getElementById('processoId').value;
+  const dados={
+    cliente_id:document.getElementById('processoCliente').value||null,
+    numero:document.getElementById('processoNumero').value.trim(),
+    tipo:document.getElementById('processoTipo').value.trim(),
+    tribunal:document.getElementById('processoTribunal').value.trim(),
+    ultimo_andamento:document.getElementById('processoUltimoAndamento').value.trim(),
+    status:document.getElementById('processoStatus').value,
+    escritorio_id:escritorioId,ativo:true
+  };
+  if(!dados.numero){alert('Número do processo é obrigatório.');return}
+  if(id){await db.from('processos').update(dados).eq('id',id)}
+  else{await db.from('processos').insert(dados)}
+  fecharModais();carregarProcessos();carregarStats();
+}
+
+async function deletarProcesso(id){
+  if(!confirm('Remover este processo?')) return;
+  await db.from('processos').delete().eq('id',id);
+  carregarProcessos();carregarStats();
+}
+
+function abrirModalCliente(){
+  document.getElementById('clienteId').value='';
+  document.getElementById('clienteNome').value='';
+  document.getElementById('clienteCPF').value='';
+  document.getElementById('clienteEmail').value='';
+  document.getElementById('modalCliente').classList.add('open');
+}
+
+async function salvarCliente(){
+  const dados={nome:document.getElementById('clienteNome').value.trim(),cpf:document.getElementById('clienteCPF').value.replace(/\D/g,''),email:document.getElementById('clienteEmail').value.trim(),escritorio_id:escritorioId};
+  if(!dados.nome||!dados.cpf){alert('Nome e CPF são obrigatórios.');return}
+  await db.from('clientes').insert(dados);
+  fecharModais();carregarClientes();carregarStats();
+}
+
+async function deletarCliente(id){
+  if(!confirm('Remover este cliente?')) return;
+  await db.from('clientes').delete().eq('id',id);
+  carregarClientes();carregarStats();
+}
+
+function fecharModais(){document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open'))}
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)fecharModais()}));
+
+db.auth.getSession().then(({data:{session}})=>{if(session)iniciarAdmin(session.user)});
+</script>
+</body>
+</html>
